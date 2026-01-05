@@ -1,7 +1,13 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    jacoco
 }
+
+jacoco {
+    toolVersion = "0.8.10" // latest stable
+}
+
 
 android {
     namespace = "com.dvt.login"
@@ -43,7 +49,45 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.3"
     }
+
 }
+
+tasks.register<JacocoReport>("jacocoTestReport") {
+    dependsOn("testDebugUnitTest") // Run unit tests first
+
+    reports {
+        xml.required.set(true)      // for CI tools
+        html.required.set(true)     // human-readable report
+        csv.required.set(false)
+        html.outputLocation.set(layout.buildDirectory.dir("reports/jacocoHtml"))
+    }
+
+    val fileFilter = listOf(
+        "**/R.class",
+        "**/R$*.class",
+        "**/BuildConfig.*",
+        "**/Manifest*.*",
+        "**/*Test*.*"
+    )
+
+    val debugTree = fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
+        exclude(fileFilter)
+    }
+
+    classDirectories.setFrom(debugTree)
+    sourceDirectories.setFrom(
+        files(
+            "src/main/java",
+            "src/main/kotlin"
+        )
+    )
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include("jacoco/testDebugUnitTest.exec")
+        }
+    )
+}
+
 
 
 
@@ -82,6 +126,7 @@ dependencies {
 
         // Unit testing
         testImplementation("junit:junit:4.13.2")
+        testImplementation("org.mockito:mockito-core:5.11.0")
 
         // AndroidX Test - JUnit Runner
         androidTestImplementation("androidx.test.ext:junit:1.1.5")

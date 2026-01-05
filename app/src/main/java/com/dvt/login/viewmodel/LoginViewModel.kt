@@ -16,25 +16,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 
-data class LoginUiState(
-    val username: String = "",
-    val password: String = "",
-    val rememberMe: Boolean = false,
-    val isLoading: Boolean = false,
-    val failureCount: Int = 0,
-    val isLockedOut: Boolean = false,
-    val errorMessage: String? = null
-) {
-    val isLoginEnabled: Boolean =
-        username.isNotBlank() &&
-                password.length >= 4 &&
-                !isLoading &&
-                !isLockedOut
-}
 
 class LoginViewModel(
     private val repository: AuthRepository,
-    private val isOnline: StateFlow<Boolean>
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -62,7 +47,7 @@ class LoginViewModel(
 
             if (currentState.isLockedOut) return@launch
 
-            if (!isOnline.value) {
+            if (!networkMonitor.isOnline()) {
                 _uiState.update { it.copy(errorMessage = "No internet connection") }
                 return@launch
             }
@@ -96,9 +81,6 @@ class LoginViewModel(
         _uiState.value = LoginUiState() // reset to default state
     }
 
-    fun getRememberedToken(): String? {
-        return repository.getRememberedToken()
-    }
 
 
 }
@@ -114,7 +96,7 @@ class LoginViewModelFactory(
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
             return LoginViewModel(
                 repository = repository,
-                isOnline = networkMonitor.isOnline
+                networkMonitor = networkMonitor
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

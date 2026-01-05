@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val factory = LoginViewModelFactory(application, AuthRepository(), NetworkMonitor(this))
+        val factory = LoginViewModelFactory(application, AuthRepository(this), NetworkMonitor(this))
 
         setContent {
             val navController = rememberNavController()

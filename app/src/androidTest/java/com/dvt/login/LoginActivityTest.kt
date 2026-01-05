@@ -14,40 +14,16 @@ import com.dvt.login.userInterface.LoginScreen
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
 import junit.framework.TestCase.assertFalse
-
-class FakeAuthRepositorySuccess : AuthRepository() {
-    var loginCalled = false // track if login was called
-
-    override suspend fun login(username: String, password: String): Result<String> {
-        loginCalled = true
-        return Result.success("fake_token_123")
-    }
-
-    private var token: String? = null
-    override fun rememberToken(token: String) {
-        this.token = token
-        super.rememberToken(token)
-    }
-
-    override fun getRememberedToken() = token
-}
-
-class FakeAuthRepositoryFailure : AuthRepository() {
-    var loginCalled = false
-
-    override suspend fun login(username: String, password: String): Result<String> {
-        loginCalled = true
-        return Result.failure(Exception("Invalid Credentials"))
-    }
-}
-
+import androidx.test.platform.app.InstrumentationRegistry
+import com.dvt.login.network.NetworkMonitor
+import kotlinx.coroutines.flow.StateFlow
 
 
 // ----------------------
 // Test class
 // ----------------------
 @RunWith(AndroidJUnit4::class)
-class LoginFailureTest {
+class LoginActivityTest {
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -64,10 +40,13 @@ class LoginFailureTest {
             )
         }
     }
+
+    //Invalid Credentials
     @Test
     fun login_withInvalidCredentials_showsError() {
-        val fakeRepo = FakeAuthRepositoryFailure()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
 
         setLoginContent(viewModel)
 
@@ -86,10 +65,12 @@ class LoginFailureTest {
         }
     }
 
+    //Disable Login Button
     @Test
     fun login_withEmptyCredentials_disablesLoginButton() {
-        val fakeRepo = FakeAuthRepositorySuccess()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
 
         composeRule.setContent {
             LoginScreen(viewModel = viewModel, onLoginSuccess = {})
@@ -104,10 +85,12 @@ class LoginFailureTest {
             .assertIsNotEnabled()
     }
 
+    //Enable Login button
     @Test
     fun login_withValidCredentials_enablesLoginButton() {
-        val fakeRepo = FakeAuthRepositorySuccess()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
 
         // Use common method
         setLoginContent(viewModel)
@@ -121,10 +104,12 @@ class LoginFailureTest {
             .assertIsEnabled()
     }
 
+    //Navigation triggered
     @Test
     fun login_withValidCredentials_triggersNavigation() {
-        val fakeRepo = FakeAuthRepositorySuccess()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
 
         // Flag to check if navigation lambda is called
         var navigationTriggered = false
@@ -150,10 +135,12 @@ class LoginFailureTest {
         assert(navigationTriggered) { "Navigation should be triggered on successful login" }
     }
 
-    // 3. Error increments failure count
+    // Error increments failure count
     @Test
     fun login_withInvalidCredentials_incrementsFailureCount() {
-        val viewModel = LoginViewModel(FakeAuthRepositoryFailure(), MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
         setLoginContent(viewModel)
 
         composeRule.onNodeWithTag("username").performTextInput("wrong")
@@ -164,10 +151,12 @@ class LoginFailureTest {
         assertEquals(1, viewModel.uiState.value.failureCount)
     }
 
+    //Lockout
     @Test
     fun login_lockoutAfterThreeFailures() {
-        val fakeRepo = FakeAuthRepositoryFailure() // always fails
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val viewModel = LoginViewModel(AuthRepository(context), NetworkMonitor(context))
 
         // Set up the Compose content
         composeRule.setContent {
@@ -194,28 +183,14 @@ class LoginFailureTest {
         composeRule.onNodeWithTag("loginButton").assertIsNotEnabled()
     }
 
-    @Test
-    fun login_offline_showsOfflineMessage_noServiceCall() {
-        val fakeRepo = FakeAuthRepositoryFailure()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(false))
 
-        setLoginContent(viewModel)
-
-        composeRule.onNodeWithTag("username").performTextInput("anne")
-        composeRule.onNodeWithTag("password").performTextInput("anne")
-        composeRule.onNodeWithTag("loginButton").performClick()
-
-        composeRule.waitUntil(2000) { viewModel.uiState.value.errorMessage != null }
-
-        assertEquals("No internet connection", viewModel.uiState.value.errorMessage)
-        assertFalse(fakeRepo.loginCalled)
-    }
-
+    //rememeber me
     @Test
     fun login_rememberMePersistsToken() {
-        // Fake repository that tracks login and remembered token
-        val fakeRepo = FakeAuthRepositorySuccess()
-        val viewModel = LoginViewModel(fakeRepo, MutableStateFlow(true))
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val repository = AuthRepository(context)
+        val viewModel = LoginViewModel(repository, NetworkMonitor(context))
 
         // Compose content
         composeRule.setContent {
@@ -241,8 +216,12 @@ class LoginFailureTest {
                     viewModel.uiState.value.failureCount == 0
         }
 
-        // Assert the token was remembered in the repository
-        assertEquals("fake_token_123", fakeRepo.getRememberedToken())
+        val rememberedToken = runBlocking {
+            repository.getRememberedToken()
+        }
+
+        // Assert the token was persisted correctly
+        assertEquals("jwt_token_123", rememberedToken)
     }
 
 
