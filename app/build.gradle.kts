@@ -52,41 +52,54 @@ android {
 
 }
 
-tasks.register<JacocoReport>("jacocoTestReport") {
-    dependsOn("testDebugUnitTest") // Run unit tests first
 
-    reports {
-        xml.required.set(true)      // for CI tools
-        html.required.set(true)     // human-readable report
-        csv.required.set(false)
-        html.outputLocation.set(layout.buildDirectory.dir("reports/jacocoHtml"))
-    }
+        tasks.register<JacocoReport>("jacocoTestReport") {
+            dependsOn("testDebugUnitTest") // run unit tests first
 
-    val fileFilter = listOf(
-        "**/R.class",
-        "**/R$*.class",
-        "**/BuildConfig.*",
-        "**/Manifest*.*",
-        "**/*Test*.*"
-    )
+            // ---- Reports ----
+            reports {
+                xml.required.set(true)   // for CI
+                html.required.set(true)  // human-readable
+                csv.required.set(false)
+                html.outputLocation.set(layout.buildDirectory.dir("reports/jacocoHtml"))
+            }
 
-    val debugTree = fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")) {
-        exclude(fileFilter)
-    }
+            // ---- Exclude unwanted classes ----
+            val fileFilter = listOf(
+                "**/R.class",
+                "**/R$*.class",
+                "**/BuildConfig.*",
+                "**/Manifest*.*",
+                "**/*Test*.*",
+            )
 
-    classDirectories.setFrom(debugTree)
-    sourceDirectories.setFrom(
-        files(
-            "src/main/java",
-            "src/main/kotlin"
-        )
-    )
-    executionData.setFrom(
-        fileTree(layout.buildDirectory) {
-            include("jacoco/testDebugUnitTest.exec")
+            // ---- Class directories (Java + Kotlin compiled) ----
+            val javaDebugTree = fileTree("${buildDir}/intermediates/javac/debug/classes") {
+                include ("com/dvt/login/viewmodel/**")
+            }
+
+            val kotlinDebugTree = fileTree("${buildDir}/tmp/kotlin-classes/debug") {
+                include ("com/dvt/login/viewmodel/**")
+            }
+
+            classDirectories.setFrom(files(javaDebugTree, kotlinDebugTree))
+
+            // ---- Source directories ----
+            sourceDirectories.setFrom(
+                files(
+                    "src/main/java",
+                    "src/main/kotlin"
+                )
+            )
+
+            // ---- Test execution data ----
+            executionData.setFrom(
+                fileTree(buildDir) {
+                    include("jacoco/testDebugUnitTest.exec")
+                }
+            )
         }
-    )
-}
+
 
 
 
