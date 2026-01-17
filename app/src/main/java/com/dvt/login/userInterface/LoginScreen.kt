@@ -9,11 +9,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import com.dvt.login.util.LoginErrors
 import com.dvt.login.viewmodel.LoginViewModel
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel, onLoginSuccess: () -> Unit) {
     val state by viewModel.uiState.collectAsState()
+    val errorText = state.errorMessage
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { onLoginSuccess() }
@@ -46,12 +48,6 @@ fun LoginScreen(viewModel: LoginViewModel, onLoginSuccess: () -> Unit) {
                 modifier = Modifier.testTag("rememberMe")
             )
             Text("Remember me")
-        }
-
-        val errorText = when {
-            state.isLockedOut -> "Account locked after 3 failures"
-            state.errorMessage != null -> state.errorMessage
-            else -> null
         }
 
         errorText?.let {
