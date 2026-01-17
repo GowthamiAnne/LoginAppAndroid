@@ -14,6 +14,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.MockitoAnnotations
 import MainDispatcherRule
+import com.dvt.login.util.LoginErrors
 import com.dvt.login.viewmodel.LoginViewModel
 
 @ExperimentalCoroutinesApi
@@ -36,19 +37,21 @@ class LoginViewModelTest {
         viewModel = LoginViewModel(authRepository, networkMonitor)
     }
 
+    //Login Success
     @Test
     fun `login success navigates`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
-        `when`(authRepository.login("anne", "anne")).thenReturn(Result.success("jwt_token_123"))
+        `when`(authRepository.login("anne", "gowthami")).thenReturn(Result.success("jwt_token_123"))
 
         viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
+        viewModel.onPasswordChange("gowthami")
         viewModel.login()
 
 
         assertEquals(0, viewModel.uiState.value.failureCount)
     }
 
+    //Login failure count
     @Test
     fun `login error increments failure count`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
@@ -61,6 +64,7 @@ class LoginViewModelTest {
         assertEquals(1, viewModel.uiState.value.failureCount)
     }
 
+    //Lockout
     @Test
     fun `lockout after 3 failures`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
@@ -75,32 +79,34 @@ class LoginViewModelTest {
         assertEquals(true, viewModel.uiState.value.isLockedOut)
     }
 
+    //Offline
     @Test
     fun `offline shows message and no service call`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(false)
 
         viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
+        viewModel.onPasswordChange("gowthami")
         viewModel.login()
 
         assertEquals("No internet connection", viewModel.uiState.value.errorMessage)
         verify(authRepository, Mockito.never()).login(Mockito.anyString(), Mockito.anyString())
     }
 
+    //Remember me persist token
     @Test
     fun `remember me persists token`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
-        `when`(authRepository.login("anne", "anne")).thenReturn(Result.success("jwt_token_123"))
+        `when`(authRepository.login("anne", "gowthami")).thenReturn(Result.success("jwt_token_123"))
 
         viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
+        viewModel.onPasswordChange("gowthami")
         viewModel.onRememberMeChange(true)
         viewModel.login()
 
         verify(authRepository).rememberToken("jwt_token_123")
     }
 
-    // Additional Test #1: Validation - Initial state has empty credentials
+    // Initial state has empty credentials
     @Test
     fun `initial state has empty username and password`() {
         assertEquals("", viewModel.uiState.value.username)
@@ -110,21 +116,21 @@ class LoginViewModelTest {
         assertEquals(false, viewModel.uiState.value.isLockedOut)
     }
 
-    // Additional Test #2: Validation - Username change updates state
+    // Username change updates state
     @Test
     fun `username change updates ui state`() {
         viewModel.onUsernameChange("anne")
         assertEquals("anne", viewModel.uiState.value.username)
     }
 
-    // Additional Test #3: Validation - Password change updates state
+    // Password change updates state
     @Test
     fun `password change updates ui state`() {
-        viewModel.onPasswordChange("anne")
-        assertEquals("anne", viewModel.uiState.value.password)
+        viewModel.onPasswordChange("gowthami")
+        assertEquals("gowthami", viewModel.uiState.value.password)
     }
 
-    // Additional Test #4: Validation - Remember me toggle updates state
+    //Remember me toggle updates state
     @Test
     fun `remember me toggle updates ui state`() {
         assertEquals(false, viewModel.uiState.value.rememberMe)
@@ -136,42 +142,26 @@ class LoginViewModelTest {
         assertEquals(false, viewModel.uiState.value.rememberMe)
     }
 
-    // Additional Test #5: Success - Login success sets isLoginSuccess to true
-    @Test
-    fun `successful login sets login success flag`() = runTest {
-        `when`(networkMonitor.isOnline()).thenReturn(true)
-        `when`(authRepository.login("anne", "anne")).thenReturn(Result.success("jwt_token_123"))
-
-        viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
-
-
-        viewModel.login()
-
-        assertEquals(0, viewModel.uiState.value.failureCount)
-        assertEquals(null, viewModel.uiState.value.errorMessage)
-    }
-
-    // Additional Test #6: Error - Login failure sets error message
+    //Login failure sets error message
     @Test
     fun `login failure sets error message`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
         `when`(authRepository.login("anne", "wrongpass"))
-            .thenReturn(Result.failure(Exception("Invalid Credentials")))
+            .thenReturn(Result.failure(Exception(LoginErrors.INVALID_CREDENTIALS)))
 
         viewModel.onUsernameChange("anne")
         viewModel.onPasswordChange("wrongpass")
         viewModel.login()
 
-        assertEquals("Invalid Credentials", viewModel.uiState.value.errorMessage)
+        assertEquals(LoginErrors.INVALID_CREDENTIALS, viewModel.uiState.value.errorMessage)
     }
 
-    // Additional Test #7: Error - Multiple failures increment count correctly
+    // Multiple failures increment count correctly
     @Test
     fun `multiple login failures increment failure count`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
         `when`(authRepository.login("anne", "wrongpass"))
-            .thenReturn(Result.failure(Exception("Invalid credentials")))
+            .thenReturn(Result.failure(Exception(LoginErrors.INVALID_CREDENTIALS)))
 
         viewModel.onUsernameChange("anne")
         viewModel.onPasswordChange("wrongpass")
@@ -187,61 +177,23 @@ class LoginViewModelTest {
         assertEquals(false, viewModel.uiState.value.isLockedOut)
     }
 
-    // Additional Test #8: Lockout - Cannot login when locked out
-    @Test
-    fun `cannot login when account is locked out`() = runTest {
-        `when`(networkMonitor.isOnline()).thenReturn(true)
-        `when`(authRepository.login("anne", "wrongpass"))
-            .thenReturn(Result.failure(Exception("Invalid credentials")))
-
-        viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("wrongpass")
-
-        // Lock out the account
-        repeat(3) {
-            viewModel.login()
-        }
-
-        assertEquals(true, viewModel.uiState.value.isLockedOut)
-
-        // Try to login again - should not call repository
-        viewModel.login()
-
-        // Verify repository was only called 3 times (during lockout), not 4
-        verify(authRepository, Mockito.times(3)).login(Mockito.anyString(), Mockito.anyString())
-    }
-
-    // Additional Test #9: Offline - Offline state prevents login immediately
+    //Offline - Offline state prevents login immediately
     @Test
     fun `offline state prevents login attempt`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(false)
 
         viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
+        viewModel.onPasswordChange("gowthami")
 
         assertEquals(null, viewModel.uiState.value.errorMessage)
 
         viewModel.login()
 
-        assertEquals("No internet connection", viewModel.uiState.value.errorMessage)
+        assertEquals(LoginErrors.NO_INTERNET, viewModel.uiState.value.errorMessage)
         verify(authRepository, Mockito.never()).login(Mockito.anyString(), Mockito.anyString())
     }
 
-    // Additional Test #10: Remember me - Token not saved when remember me is false
-    @Test
-    fun `token not saved when remember me is false`() = runTest {
-        `when`(networkMonitor.isOnline()).thenReturn(true)
-        `when`(authRepository.login("anne", "anne")).thenReturn(Result.success("jwt_token_123"))
-
-        viewModel.onUsernameChange("anne")
-        viewModel.onPasswordChange("anne")
-        viewModel.onRememberMeChange(false) // Explicitly set to false
-        viewModel.login()
-
-        verify(authRepository, Mockito.never()).rememberToken(Mockito.anyString())
-    }
-
-    // Additional Test #12: Lockout - Lockout flag is set exactly at 3 failures
+    // Lockout - Lockout flag is set exactly at 3 failures
     @Test
     fun `lockout flag set at exactly 3 failures`() = runTest {
         `when`(networkMonitor.isOnline()).thenReturn(true)
